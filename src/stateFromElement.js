@@ -163,7 +163,7 @@ class BlockGenerator {
   process(element: DOMElement): Array<ContentBlock> {
     this.processBlockElement(element);
     let contentBlocks = [];
-    this.blockList.forEach((block) => {
+    this.blockList.forEach((block, idx) => {
       let {text, characterMeta} = concatFragments(block.textFragments);
       let includeEmptyBlock = false;
       // If the block contains only a soft break then don't discard the block,
@@ -175,7 +175,18 @@ class BlockGenerator {
       if (block.tagName === 'pre') {
         ({text, characterMeta} = trimLeadingNewline(text, characterMeta));
       } else {
-        ({text, characterMeta} = collapseWhiteSpace(text, characterMeta));
+        // Check if line does not contain only separators
+        if (!text.replace(/\s/g, '').length) {
+          text = '';
+          // Include empty block if it is not the first one
+          if (idx === 0) {
+            includeEmptyBlock = false;
+          } else {
+            includeEmptyBlock = true;
+          }
+        } else {
+          ({text, characterMeta} = collapseWhiteSpace(text, characterMeta));
+        }
       }
       // Previously we were using a placeholder for soft breaks. Now that we
       // have collapsed whitespace we can change it back to normal line breaks.
@@ -367,45 +378,31 @@ function trimLeadingNewline(text: string, characterMeta: CharacterMetaSeq): Text
   return {text, characterMeta};
 }
 
-function trimLeadingSpace(text: string, characterMeta: CharacterMetaSeq): TextFragment {
-  while (text.charAt(0) === ' ') {
-    text = text.slice(1);
-    characterMeta = characterMeta.slice(1);
+function getLeadingWhiteSpaceCount(text: string) {
+  let i = 0;
+  while (text.charAt(i) === ' ') {
+    i = i + 1;
   }
-  return {text, characterMeta};
+  return i;
 }
 
-function trimTrailingSpace(text: string, characterMeta: CharacterMetaSeq): TextFragment {
-  while (text.slice(-1) === ' ') {
-    text = text.slice(0, -1);
-    characterMeta = characterMeta.slice(0, -1);
+function getTrailingWhiteSpaceCount(text: string) {
+  let count = 0;
+  let i = text.length - 1;
+  while (text.charAt(i) === ' ') {
+    i = i - 1;
+    count = count + 1;
   }
-  return {text, characterMeta};
+  return count;
 }
 
 function collapseWhiteSpace(text: string, characterMeta: CharacterMetaSeq): TextFragment {
-  text = text.replace(/[ \t\n]/g, ' ');
-  ({text, characterMeta} = trimLeadingSpace(text, characterMeta));
-  ({text, characterMeta} = trimTrailingSpace(text, characterMeta));
-  let i = text.length;
-  while (i--) {
-    if (text.charAt(i) === ' ' && text.charAt(i - 1) === ' ') {
-      text = text.slice(0, i) + text.slice(i + 1);
-      characterMeta = characterMeta.slice(0, i)
-        .concat(characterMeta.slice(i + 1));
-    }
-  }
-  // There could still be one space on either side of a softbreak.
-  ({text, characterMeta} = replaceTextWithMeta(
-    {text, characterMeta},
-    SOFT_BREAK_PLACEHOLDER + ' ',
-    SOFT_BREAK_PLACEHOLDER,
-  ));
-  ({text, characterMeta} = replaceTextWithMeta(
-    {text, characterMeta},
-    ' ' + SOFT_BREAK_PLACEHOLDER,
-    SOFT_BREAK_PLACEHOLDER,
-  ));
+  // Count and remove leading and trailing spaces
+  text = text.replace(/[ \n\t]/g, ' ');
+  const startIdx = getLeadingWhiteSpaceCount(text);
+  const endIdx = text.length - getTrailingWhiteSpaceCount(text);
+  text = text.slice(startIdx, endIdx);
+  characterMeta = characterMeta.slice(startIdx, endIdx);
   return {text, characterMeta};
 }
 
