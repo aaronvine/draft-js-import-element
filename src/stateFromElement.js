@@ -1,6 +1,5 @@
 /* @flow */
 
-import replaceTextWithMeta from './lib/replaceTextWithMeta';
 import {
   CharacterMetadata,
   ContentBlock,
